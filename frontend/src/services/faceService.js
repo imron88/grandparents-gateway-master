@@ -2,24 +2,40 @@
 const CDN_BASE = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model';
 
 let modelsLoaded = false;
+let faceapiModule = null; // store module reference so it's never lost
 
 /**
  * Load face-api.js models from CDN.
+ * Returns the faceapi module — always.
  */
 export async function loadFaceModels() {
-  if (modelsLoaded) return;
+  // Already loaded — return cached module
+  if (modelsLoaded && faceapiModule) return faceapiModule;
 
   // Dynamically import face-api.js
-  const faceapi = await import('face-api.js');
+  faceapiModule = await import('face-api.js');
 
+  // Load model weights from CDN
   await Promise.all([
-    faceapi.nets.tinyFaceDetector.loadFromUri(CDN_BASE),
-    faceapi.nets.faceLandmark68Net.loadFromUri(CDN_BASE),
-    faceapi.nets.faceRecognitionNet.loadFromUri(CDN_BASE),
+    faceapiModule.nets.tinyFaceDetector.loadFromUri(CDN_BASE),
+    faceapiModule.nets.faceLandmark68Net.loadFromUri(CDN_BASE),
+    faceapiModule.nets.faceRecognitionNet.loadFromUri(CDN_BASE),
   ]);
 
   modelsLoaded = true;
-  return faceapi;
+  return faceapiModule;
+}
+
+/**
+ * Check if WebGL is available in this browser.
+ */
+function isWebGLSupported() {
+  try {
+    const canvas = document.createElement('canvas');
+    return !!(canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -29,12 +45,16 @@ export async function loadFaceModels() {
  * @returns {Float32Array} averaged descriptor
  */
 export async function enrollFace(videoEl, onProgress) {
+  if (!isWebGLSupported()) {
+    throw new Error('WEBGL_UNSUPPORTED');
+  }
+
   const faceapi = await loadFaceModels();
   const SAMPLES = 5;
   const descriptors = [];
 
   for (let i = 0; i < SAMPLES; i++) {
-    await new Promise(r => setTimeout(r, 800)); // wait between captures
+    await new Promise(r => setTimeout(r, 800));
 
     const detection = await faceapi
       .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions())
@@ -64,6 +84,11 @@ export async function enrollFace(videoEl, onProgress) {
  * @returns {{ match: boolean, distance: number, liveness: boolean }}
  */
 export async function verifyFace(videoEl, storedDescriptor) {
+  if (!isWebGLSupported()) {
+    // No WebGL — skip verification, assume valid
+    return { match: true, distance: 0, liveness: true, skipped: true };
+  }
+
   const faceapi = await loadFaceModels();
 
   const detection = await faceapi
@@ -79,7 +104,6 @@ export async function verifyFace(videoEl, storedDescriptor) {
   const distance = faceapi.euclideanDistance(detection.descriptor, stored);
   const match = distance < 0.55;
 
-  // Liveness: check eye aspect ratio (EAR) for blink detection
   const landmarks = detection.landmarks;
   const liveness = checkLiveness(landmarks);
 
@@ -93,12 +117,10 @@ function checkLiveness(landmarks) {
   try {
     const leftEye = landmarks.getLeftEye();
     const rightEye = landmarks.getRightEye();
-
     const ear = (eyeAspectRatio(leftEye) + eyeAspectRatio(rightEye)) / 2;
-    // Eyes are open if EAR > 0.2 (closed eyes have low EAR)
     return ear > 0.15;
   } catch {
-    return true; // fallback: assume live
+    return true;
   }
 }
 

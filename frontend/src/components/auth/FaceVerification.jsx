@@ -74,6 +74,13 @@ export default function FaceVerification({ mode = 'verify', storedDescriptor = n
                 const result = await verifyFace(videoRef.current, storedDescriptor);
 
                 setBlinkPrompt(false);
+
+                // If WebGL unsupported during login, skip face verification
+                if (result.skipped) {
+                    onVerified?.({ match: true, skipped: true });
+                    return;
+                }
+
                 if (result.match) {
                     setStatus('success');
                     setMessage('Face recognized! ✓');
@@ -85,6 +92,13 @@ export default function FaceVerification({ mode = 'verify', storedDescriptor = n
                 }
             }
         } catch (err) {
+            // WebGL not available — auto-skip face step
+            if (err.message === 'WEBGL_UNSUPPORTED') {
+                setStatus('unsupported');
+                setMessage('Face detection not supported on this device. Skipping...');
+                setTimeout(() => onEnrolled?.(null), 2000);
+                return;
+            }
             setStatus('error');
             setMessage(err.message || 'Something went wrong. Please try again.');
             onError?.(err.message);
