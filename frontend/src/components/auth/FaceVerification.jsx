@@ -9,8 +9,20 @@ export default function FaceVerification({ mode = 'verify', storedDescriptor = n
     const [blinkPrompt, setBlinkPrompt] = useState(false);
 
     const startCamera = useCallback(async () => {
+        // Step 1: Try to load face models (requires WebGL)
         try {
             await loadFaceModels();
+        } catch (modelErr) {
+            // WebGL not supported — face detection unavailable
+            setStatus('unsupported');
+            setMessage('Face detection is not supported on this device. You can skip this step.');
+            // Auto-skip after 3 seconds
+            setTimeout(() => onEnrolled?.(null), 3000);
+            return;
+        }
+
+        // Step 2: Try to access the camera
+        try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
@@ -25,7 +37,8 @@ export default function FaceVerification({ mode = 'verify', storedDescriptor = n
             setMessage('Camera access denied. Please allow camera access and try again.');
             onError?.('Camera access denied');
         }
-    }, [mode, onError]);
+    }, [mode, onError, onEnrolled]);
+
 
     useEffect(() => {
         startCamera();
@@ -80,40 +93,55 @@ export default function FaceVerification({ mode = 'verify', storedDescriptor = n
 
     const isSuccess = status === 'success';
     const isError = status === 'error';
+    const isUnsupported = status === 'unsupported';
 
     return (
         <div className="flex flex-col items-center gap-6">
+            {/* Unsupported — WebGL not available */}
+            {isUnsupported && (
+                <div className="glass-card p-6 text-center space-y-3 w-80">
+                    <p className="text-4xl">📵</p>
+                    <p className="text-white font-semibold text-base">{message}</p>
+                    <p className="text-white/40 text-sm">Automatically skipping in a moment...</p>
+                    <button onClick={() => onEnrolled?.(null)} className="btn-secondary w-full text-sm">
+                        Skip Now
+                    </button>
+                </div>
+            )}
+
             {/* Camera preview */}
-            <div className="relative w-80 h-64 rounded-3xl overflow-hidden bg-gray-900 border-2 border-white/10">
-                <video
-                    ref={videoRef}
-                    className="w-full h-full object-cover scale-x-[-1]"
-                    muted
-                    playsInline
-                />
+            {!isUnsupported && (
+                <div className="relative w-80 h-64 rounded-3xl overflow-hidden bg-gray-900 border-2 border-white/10">
+                    <video
+                        ref={videoRef}
+                        className="w-full h-full object-cover scale-x-[-1]"
+                        muted
+                        playsInline
+                    />
 
-                {/* Face oval overlay */}
-                {(status === 'ready' || status === 'capturing') && (
-                    <div className="face-oval" style={{
-                        borderColor: isSuccess ? '#22c55e' : '#6366f1',
-                        boxShadow: blinkPrompt ? '0 0 30px rgba(99,102,241,0.8), inset 0 0 30px rgba(99,102,241,0.2)' : undefined,
-                    }} />
-                )}
+                    {/* Face oval overlay */}
+                    {(status === 'ready' || status === 'capturing') && (
+                        <div className="face-oval" style={{
+                            borderColor: isSuccess ? '#22c55e' : '#6366f1',
+                            boxShadow: blinkPrompt ? '0 0 30px rgba(99,102,241,0.8), inset 0 0 30px rgba(99,102,241,0.2)' : undefined,
+                        }} />
+                    )}
 
-                {/* Success overlay */}
-                {isSuccess && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-safe-500/20 backdrop-blur-sm">
-                        <div className="text-6xl animate-bounce">✓</div>
-                    </div>
-                )}
+                    {/* Success overlay */}
+                    {isSuccess && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-safe-500/20 backdrop-blur-sm">
+                            <div className="text-6xl animate-bounce">✓</div>
+                        </div>
+                    )}
 
-                {/* Error overlay */}
-                {isError && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-danger-500/20 backdrop-blur-sm">
-                        <div className="text-6xl">⚠</div>
-                    </div>
-                )}
-            </div>
+                    {/* Error overlay */}
+                    {isError && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-danger-500/20 backdrop-blur-sm">
+                            <div className="text-6xl">⚠</div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Progress bar (enrollment) */}
             {mode === 'enroll' && status === 'capturing' && (
