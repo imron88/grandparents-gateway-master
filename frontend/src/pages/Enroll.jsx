@@ -30,6 +30,10 @@ export default function Enroll() {
         try {
             const result = await registerPasskey(form.email, form.name);
             setUserId(result.userId);
+            // Store enrollment JWT so face/guardian endpoints can authenticate
+            if (result.accessToken) {
+                sessionStorage.setItem('accessToken', result.accessToken);
+            }
             setStep(2);
         } catch (err) {
             setError(err.message);
@@ -40,8 +44,9 @@ export default function Enroll() {
 
     const handleFaceEnrolled = async (descriptor) => {
         setFaceDescriptor(descriptor);
-        if (userId) {
-            await api.post('/biometrics/face/enroll', { faceDescriptor: descriptor });
+        if (userId && descriptor) {
+            // No leading slash — baseURL already ends with /
+            await api.post('biometrics/face/enroll', { faceDescriptor: descriptor }).catch(() => { });
         }
         setStep(3);
     };

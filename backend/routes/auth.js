@@ -106,7 +106,25 @@ router.post('/register/verify', auditLogger('passkey_register_complete'), async 
     // Create behavioral profile
     await supabase.from('behavioral_profiles').upsert({ user_id: userId }, { onConflict: 'user_id' });
 
-    res.json({ verified: true, message: 'Your security key has been set up successfully!' });
+    // Fetch user details
+    const { data: user } = await supabase
+      .from('users')
+      .select('id, email, display_name, role')
+      .eq('id', userId)
+      .single();
+
+    // Issue enrollment JWT so subsequent steps (face, guardian) can authenticate
+    const accessToken = jwt.sign(
+      { userId: user.id, email: user.email, role: user.role, trustScore: 50 },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    res.json({
+      verified: true,
+      accessToken,
+      message: 'Your security key has been set up successfully!',
+    });
   } catch (err) {
     console.error('register/verify error:', err);
     res.status(500).json({ error: 'Registration failed. Please try again.' });
