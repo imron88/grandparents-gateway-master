@@ -31,7 +31,7 @@ export default function Login() {
 
             // Try to get face descriptor for verification
             try {
-                const { data } = await api.get('/biometrics/face/descriptor');
+                const { data } = await api.get('biometrics/face/descriptor');
                 setStoredDescriptor(data.faceDescriptor);
                 setStep('face');
             } catch {

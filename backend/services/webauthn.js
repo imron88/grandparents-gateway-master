@@ -50,17 +50,15 @@ export async function verifyRegistration(response, expectedChallenge) {
 
 /**
  * Generate authentication (assertion) options.
+ * Use empty allowCredentials = discoverable credentials mode.
+ * Browser shows ALL passkeys for this RP — avoids credential ID encoding mismatches.
  */
 export async function genAuthenticationOptions(existingCredentials = []) {
   return generateAuthenticationOptions({
     rpID: RP_ID,
     timeout: 60000,
     userVerification: 'required',
-    allowCredentials: existingCredentials.map((cred) => ({
-      id: cred.credential_id,
-      type: 'public-key',
-      transports: cred.transports || ['internal'],
-    })),
+    allowCredentials: [], // discoverable — let browser pick from stored passkeys
   });
 }
 

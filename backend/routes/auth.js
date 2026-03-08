@@ -177,15 +177,30 @@ router.post('/login/verify', auditLogger('passkey_login'), async (req, res) => {
       return res.status(400).json({ error: 'Your sign-in session expired. Please try again.' });
     }
 
-    // Get credential
-    const { data: cred } = await supabase
+    // Look up credential by response.id — credential IDs are globally unique
+    let { data: cred } = await supabase
       .from('passkey_credentials')
       .select('*')
-      .eq('user_id', userId)
       .eq('credential_id', response.id)
       .single();
 
-    if (!cred) return res.status(404).json({ error: 'Security key not found. Please enroll again.' });
+    // Fallback: if not found directly, search all user creds for a fuzzy match
+    // (handles minor base64url padding differences)
+    if (!cred) {
+      const { data: userCreds } = await supabase
+        .from('passkey_credentials')
+        .select('*')
+        .eq('user_id', userId);
+
+      cred = userCreds?.find(c =>
+        c.credential_id === response.id ||
+        c.credential_id.replace(/=+$/, '') === response.id.replace(/=+$/, '')
+      ) || null;
+    }
+
+    if (!cred) {
+      return res.status(404).json({ error: 'Security key not found. Please enroll again.' });
+    }
 
     const verification = await verifyAuthentication(response, stored.challenge, cred);
     if (!verification.verified) {
