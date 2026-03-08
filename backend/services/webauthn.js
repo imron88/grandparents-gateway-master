@@ -66,6 +66,12 @@ export async function genAuthenticationOptions(existingCredentials = []) {
  * Verify authentication response from client.
  */
 export async function verifyAuthentication(response, expectedChallenge, credential) {
+  // Defensive: log if credential data looks bad before calling the library
+  if (!credential?.public_key) {
+    console.error('[verifyAuthentication] BAD CREDENTIAL:', JSON.stringify(credential));
+    throw new Error('Credential public key is missing from database');
+  }
+
   return verifyAuthenticationResponse({
     response,
     expectedChallenge,
@@ -73,10 +79,11 @@ export async function verifyAuthentication(response, expectedChallenge, credenti
     expectedRPID: RP_ID,
     requireUserVerification: true,
     credential: {
-      id: credential.credential_id,
+      // Use response.id (what browser sent) so it always matches during v9 validation
+      id: response.id,
       publicKey: Buffer.from(credential.public_key, 'base64'),
-      counter: credential.counter,
-      transports: credential.transports || ['internal'],
+      counter: credential.counter ?? 0,  // default 0 if null/undefined
+      transports: credential.transports?.length ? credential.transports : ['internal'],
     },
   });
 }
