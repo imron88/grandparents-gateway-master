@@ -49,8 +49,8 @@ export async function verifyRegistration(response, expectedChallenge) {
 }
 
 /**
- * Generate authentication (assertion) options.
- * Use empty allowCredentials = discoverable credentials mode.
+ * Generate authentication options.
+ * Empty allowCredentials = discoverable credentials mode.
  * Browser shows ALL passkeys for this RP — avoids credential ID encoding mismatches.
  */
 export async function genAuthenticationOptions(existingCredentials = []) {
@@ -64,9 +64,14 @@ export async function genAuthenticationOptions(existingCredentials = []) {
 
 /**
  * Verify authentication response from client.
+ *
+ * IMPORTANT: The installed @simplewebauthn/server version uses the OLD 'authenticator'
+ * parameter (not the v9 'credential' parameter). Confirmed by reading the library source:
+ *   line 149: authenticator.counter
+ *   line 162: authenticator.credentialPublicKey
+ *   line 166: authenticator.credentialID
  */
 export async function verifyAuthentication(response, expectedChallenge, credential) {
-  // Defensive: log if credential data looks bad before calling the library
   if (!credential?.public_key) {
     console.error('[verifyAuthentication] BAD CREDENTIAL:', JSON.stringify(credential));
     throw new Error('Credential public key is missing from database');
@@ -78,11 +83,11 @@ export async function verifyAuthentication(response, expectedChallenge, credenti
     expectedOrigin: ORIGIN,
     expectedRPID: RP_ID,
     requireUserVerification: true,
-    credential: {
-      // Use response.id (what browser sent) so it always matches during v9 validation
-      id: response.id,
-      publicKey: Buffer.from(credential.public_key, 'base64'),
-      counter: credential.counter ?? 0,  // default 0 if null/undefined
+    // OLD API: 'authenticator' (not v9's 'credential')
+    authenticator: {
+      credentialID: Buffer.from(response.id, 'base64url'),
+      credentialPublicKey: Buffer.from(credential.public_key, 'base64'),
+      counter: credential.counter ?? 0,
       transports: credential.transports?.length ? credential.transports : ['internal'],
     },
   });
