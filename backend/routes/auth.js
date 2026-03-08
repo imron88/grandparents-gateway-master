@@ -71,17 +71,28 @@ router.post('/register/verify', auditLogger('passkey_register_complete'), async 
       return res.status(400).json({ error: 'We could not verify your security key. Please try again.' });
     }
 
+    // SimpleWebAuthn v9 returns flat registrationInfo (no nested credential object)
     const { registrationInfo } = verification;
-    const { credential } = registrationInfo;
+    const {
+      credentialID,        // Uint8Array
+      credentialPublicKey, // Uint8Array
+      counter,
+      credentialDeviceType,
+      credentialBackedUp,
+    } = registrationInfo;
+
+    // Convert Uint8Array credentialID to base64url string for storage
+    const credentialIdStr = Buffer.from(credentialID).toString('base64')
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 
     // Store credential
     const { error } = await supabase.from('passkey_credentials').insert({
       user_id: userId,
-      credential_id: credential.id,
-      public_key: Buffer.from(credential.publicKey).toString('base64'),
-      counter: credential.counter,
-      device_type: credential.deviceType,
-      backed_up: credential.backedUp,
+      credential_id: credentialIdStr,
+      public_key: Buffer.from(credentialPublicKey).toString('base64'),
+      counter: counter,
+      device_type: credentialDeviceType,  // 'singleDevice' | 'multiDevice'
+      backed_up: credentialBackedUp,
       transports: response.response?.transports || [],
     });
 
