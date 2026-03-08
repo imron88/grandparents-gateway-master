@@ -1,7 +1,14 @@
 import axios from 'axios';
 
+// IMPORTANT: baseURL must end with "/" so Axios doesn't strip the /api path
+// when request URLs start with a letter (not "/").
+// e.g. baseURL="https://backend.techshade.live/api/" + "auth/login" = correct
+const BASE = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace(/\/?$/, '/') // ensure trailing slash
+  : '/api/';
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: BASE,
   withCredentials: true,
 });
 
@@ -18,7 +25,8 @@ api.interceptors.response.use(
   async (err) => {
     if (err.response?.status === 401 && err.response?.data?.code === 'TOKEN_EXPIRED') {
       try {
-        const { data } = await axios.post('/api/auth/refresh', {}, { withCredentials: true });
+        // Use BASE so refresh also hits the backend in production
+        const { data } = await axios.post(`${BASE}auth/refresh`, {}, { withCredentials: true });
         sessionStorage.setItem('accessToken', data.accessToken);
         err.config.headers.Authorization = `Bearer ${data.accessToken}`;
         return api.request(err.config);

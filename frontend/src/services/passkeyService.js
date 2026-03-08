@@ -3,10 +3,11 @@ import api from './api.js';
 
 /**
  * Register a new passkey for the user.
+ * NOTE: Paths must NOT start with "/" — baseURL already ends with "/"
  */
 export async function registerPasskey(email, name) {
   // 1. Get registration options from backend
-  const { data } = await api.post('/auth/register/options', { email, name });
+  const { data } = await api.post('auth/register/options', { email, name });
   const { options, userId } = data;
 
   // 2. Browser prompts for passkey
@@ -21,7 +22,7 @@ export async function registerPasskey(email, name) {
   }
 
   // 3. Verify on backend
-  const { data: result } = await api.post('/auth/register/verify', {
+  const { data: result } = await api.post('auth/register/verify', {
     userId,
     response: attResp,
   });
@@ -34,7 +35,7 @@ export async function registerPasskey(email, name) {
  */
 export async function authenticatePasskey(email, behaviorSignals = {}) {
   // 1. Get challenge from backend
-  const { data } = await api.post('/auth/login/options', { email });
+  const { data } = await api.post('auth/login/options', { email });
   const { options, userId, displayName } = data;
 
   // 2. Browser prompts biometric
@@ -47,7 +48,7 @@ export async function authenticatePasskey(email, behaviorSignals = {}) {
 
   // 3. Verify on backend
   const deviceFingerprint = getDeviceFingerprint();
-  const { data: result } = await api.post('/auth/login/verify', {
+  const { data: result } = await api.post('auth/login/verify', {
     userId,
     response: assertResp,
     deviceFingerprint,
@@ -76,7 +77,6 @@ function getDeviceFingerprint() {
     nav.hardwareConcurrency,
   ].join('|');
 
-  // Simple hash
   let hash = 0;
   for (let i = 0; i < fp.length; i++) {
     hash = ((hash << 5) - hash) + fp.charCodeAt(i);
